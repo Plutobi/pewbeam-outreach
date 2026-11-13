@@ -8,9 +8,16 @@ and Radiant Orange (#ff5700). 100% native, zero mention of third-party APIs.
 import os
 import sys
 import glob
+import io
 from datetime import datetime
 import pandas as pd
 import streamlit as st
+
+def convert_df_to_excel(df_to_export, sheet_name="Pewbeam Leads"):
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine='openpyxl') as writer:
+        df_to_export.to_excel(writer, index=False, sheet_name=sheet_name[:31])
+    return buf.getvalue()
 
 # Add local path for outreach_templates & free_scraper
 sys.path.append(os.path.dirname(__file__))
@@ -352,11 +359,20 @@ with tab_prospects:
         height=450
     )
 
-    c_down1, c_down2 = st.columns([1, 1])
+    c_down1, c_down2 = st.columns(2)
     with c_down1:
+        excel_bytes = convert_df_to_excel(display_df, sheet_name="Qualified Leads")
+        st.download_button(
+            label="📊 Download as Excel Spreadsheet (.xlsx)",
+            data=excel_bytes,
+            file_name=f"pewbeam_church_leads_{datetime.now().strftime('%Y%m%d')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
+    with c_down2:
         csv_bytes = filtered.to_csv(index=False).encode('utf-8')
         st.download_button(
-            label="📥 Export Filtered Leads to CSV",
+            label="📥 Download as CSV",
             data=csv_bytes,
             file_name=f"pewbeam_church_leads_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv",
@@ -444,13 +460,25 @@ with tab_outreach:
 
         df_export = pd.DataFrame(full_campaign)
         csv_out = df_export.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="📥 Click here to save `pewbeam_multilingual_campaign.csv`",
-            data=csv_out,
-            file_name="pewbeam_multilingual_campaign.csv",
-            mime="text/csv",
-            use_container_width=True
-        )
+        col_c1, col_c2 = st.columns(2)
+        with col_c1:
+            camp_excel = convert_df_to_excel(df_export, sheet_name="Outreach Campaign")
+            st.download_button(
+                label="📊 Download Campaign as Excel (.xlsx)",
+                data=camp_excel,
+                file_name="pewbeam_multilingual_campaign.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+        with col_c2:
+            csv_out = df_export.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 Download Campaign as CSV",
+                data=csv_out,
+                file_name="pewbeam_multilingual_campaign.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
 
 # ----------------- TAB 3: DISCOVER & SCRAPE NEW CHURCHES -----------------
 with tab_discover:
@@ -568,12 +596,12 @@ with tab_discover:
                             st.info("These churches are already in your master directory.")
 
             with act_col2:
-                scraped_csv = df_scraped.to_csv(index=False).encode('utf-8')
+                scraped_excel = convert_df_to_excel(df_scraped, sheet_name="New Churches")
                 st.download_button(
-                    label=f"📥 Download {len(newly_scraped)} New Leads (CSV)",
-                    data=scraped_csv,
-                    file_name=f"new_churches_{(q_city or q_country).lower()}_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                    mime="text/csv",
+                    label=f"📊 Download {len(newly_scraped)} Leads as Excel (.xlsx)",
+                    data=scraped_excel,
+                    file_name=f"new_churches_{(q_city or q_country).lower()}_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     use_container_width=True
                 )
         else:
