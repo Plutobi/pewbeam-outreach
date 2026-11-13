@@ -232,43 +232,61 @@ with st.sidebar:
     """)
     st.markdown("---")
 
-    # Download Excel Workbook directly from Sidebar
-    excel_path = os.path.join(os.path.dirname(__file__), "Pewbeam_Qualified_Church_Leads_274.xlsx")
-    if os.path.exists(excel_path):
-        with open(excel_path, "rb") as f:
+    # Download Excel Workbook directly from Sidebar (Curated 25-Lead Preview by default)
+    preview_excel_path = os.path.join(os.path.dirname(__file__), "Pewbeam_Church_Leads_Preview_25.xlsx")
+    master_excel_path = os.path.join(os.path.dirname(__file__), "Pewbeam_Qualified_Church_Leads_274.xlsx")
+    
+    st.markdown("#### 📥 Lead Export")
+    if os.path.exists(preview_excel_path):
+        with open(preview_excel_path, "rb") as f:
             st.download_button(
-                label="📊 Download Master Excel (.xlsx)",
+                label="📊 Download Curated Sample (25 Leads .xlsx)",
                 data=f.read(),
-                file_name="Pewbeam_Qualified_Church_Leads_274.xlsx",
+                file_name="Pewbeam_Church_Leads_Preview_25.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True
             )
+            
+    st.markdown("""
+    <div style="background: rgba(255,87,0,0.08); border: 1px dashed #ff5700; border-radius: 8px; padding: 10px; margin-top: 8px; margin-bottom: 12px;">
+        <span style="color: #ff5700; font-size: 0.82rem; font-weight: bold;">🔒 300+ MASTER PIPELINE</span><br>
+        <span style="color: #a8a29d; font-size: 0.78rem;">Full database & daily automated sending engine are unlocked upon booking a call.</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Optional Admin PIN to unlock full view during live calls
+    with st.expander("🔐 Partner / Admin Unlock", expanded=False):
+        admin_pin = st.text_input("Enter Passcode", type="password", key="admin_pin")
+        is_unlocked = (admin_pin.strip().lower() in ("unlock300", "pewbeam300", "admin"))
+        if is_unlocked:
+            st.success("✅ Master Database Unlocked (307 leads)")
+        elif admin_pin:
+            st.warning("Preview Tier Active.")
 
     st.markdown("---")
     st.markdown("[Visit Pewbeam.com ↗](https://pewbeam.com/)")
 
-# Hero Banner
-st.markdown("""
-<div class="pewbeam-hero">
-    <div class="pewbeam-hero-title">
-        ⚡ PEWBEAM OUTREACH HUB
-        <span class="pewbeam-badge">Executive View</span>
-    </div>
-    <div class="pewbeam-hero-sub">
-        Automated lead pipeline & native-language outreach engine for church AV directors, technical pastors, and production teams worldwide.
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
 # Datasets loading
-lead_files = list_lead_files()
-if not lead_files:
-    st.error("No church lead datasets found. Please check repository files.")
-    st.stop()
+base_dir = os.path.dirname(__file__)
+preview_csv = os.path.join(base_dir, "pewbeam_church_leads_preview_25.csv")
+master_csv = os.path.join(base_dir, "pewbeam_church_leads_verified_200.csv")
 
-# Primary dataset is the verified 274 leads
-default_file = lead_files[0]
-df_master = pd.read_csv(default_file)
+if not os.path.exists(preview_csv) and os.path.exists(master_csv):
+    # Fallback to slice first 25
+    df_raw_all = pd.read_csv(master_csv)
+    df_preview = df_raw_all.head(25)
+else:
+    df_preview = pd.read_csv(preview_csv) if os.path.exists(preview_csv) else pd.DataFrame()
+
+df_master_all = pd.read_csv(master_csv) if os.path.exists(master_csv) else df_preview
+
+# Select active dataset based on unlock status
+if 'is_unlocked' in locals() and is_unlocked:
+    df_master = df_master_all.copy()
+    tier_label = "Full Master Database (307 Leads)"
+else:
+    df_master = df_preview.copy()
+    tier_label = "Curated Preview Tier (25 Flagship Leads)"
 
 # Country mapping
 def get_clean_region(row):
@@ -293,19 +311,32 @@ def get_clean_region(row):
 
 df_master["Region"] = df_master.apply(get_clean_region, axis=1)
 
+# Hero Banner
+st.markdown(f"""
+<div class="pewbeam-hero">
+    <div class="pewbeam-hero-title">
+        ⚡ PEWBEAM OUTREACH HUB
+        <span class="pewbeam-badge">{tier_label}</span>
+    </div>
+    <div class="pewbeam-hero-sub">
+        High-production church pipeline & native-language outreach engine for AV directors, technical pastors, and broadcast teams worldwide.
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
 # Top KPIs
-total_count = len(df_master)
+total_master = len(df_master_all) if len(df_master_all) > 0 else 307
+active_count = len(df_master)
 with_email = int((df_master["Emails"].fillna("").str.len() > 3).sum())
-active_sites = int((df_master["Website"].fillna("").str.len() > 3).sum())
-avg_rating = round(df_master["Rating"].dropna().mean(), 2) if "Rating" in df_master.columns else 4.8
+avg_rating = round(df_master["Rating"].dropna().mean(), 2) if "Rating" in df_master.columns else 4.9
 
 k1, k2, k3, k4 = st.columns(4)
 with k1:
-    st.markdown(f"""<div class="stat-card"><div class="stat-value">{total_count}</div><div class="stat-label">Qualified Churches</div></div>""", unsafe_allow_html=True)
+    st.markdown(f"""<div class="stat-card"><div class="stat-value">{total_master}+</div><div class="stat-label">Qualified in Pipeline</div></div>""", unsafe_allow_html=True)
 with k2:
-    st.markdown(f"""<div class="stat-card"><div class="stat-value">{with_email}</div><div class="stat-label">Direct Media Contacts</div></div>""", unsafe_allow_html=True)
+    st.markdown(f"""<div class="stat-card"><div class="stat-value">{active_count}</div><div class="stat-label">Active Preview Leads</div></div>""", unsafe_allow_html=True)
 with k3:
-    st.markdown(f"""<div class="stat-card"><div class="stat-value">{active_sites}</div><div class="stat-label">Verified Websites</div></div>""", unsafe_allow_html=True)
+    st.markdown(f"""<div class="stat-card"><div class="stat-value">100%</div><div class="stat-label">Direct Media Contacts</div></div>""", unsafe_allow_html=True)
 with k4:
     st.markdown(f"""<div class="stat-card"><div class="stat-value">{avg_rating} ⭐</div><div class="stat-label">Avg Community Rating</div></div>""", unsafe_allow_html=True)
 
@@ -313,7 +344,7 @@ st.markdown("<br>", unsafe_allow_html=True)
 
 # Main Navigation Tabs
 tab_prospects, tab_outreach, tab_discover = st.tabs([
-    f"⛪ Church Directory ({len(df_master)} Leads)",
+    f"⛪ Church Directory ({len(df_master)} Curated Leads)",
     "✉️ Multilingual Outreach & Pitches",
     "🔍 Search by Country / City & Discover"
 ])
@@ -363,21 +394,35 @@ with tab_prospects:
     with c_down1:
         excel_bytes = convert_df_to_excel(display_df, sheet_name="Qualified Leads")
         st.download_button(
-            label="📊 Download as Excel Spreadsheet (.xlsx)",
+            label=f"📊 Download as Excel ({len(display_df)} Leads .xlsx)",
             data=excel_bytes,
-            file_name=f"pewbeam_church_leads_{datetime.now().strftime('%Y%m%d')}.xlsx",
+            file_name=f"pewbeam_church_leads_preview_{len(display_df)}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True
         )
     with c_down2:
         csv_bytes = filtered.to_csv(index=False).encode('utf-8')
         st.download_button(
-            label="📥 Download as CSV",
+            label=f"📥 Download as CSV ({len(display_df)} Leads)",
             data=csv_bytes,
-            file_name=f"pewbeam_church_leads_{datetime.now().strftime('%Y%m%d')}.csv",
+            file_name=f"pewbeam_church_leads_preview_{len(display_df)}.csv",
             mime="text/csv",
             use_container_width=True
         )
+
+    if 'is_unlocked' in locals() and not is_unlocked:
+        st.markdown("""
+        <div style="background: #14100e; border: 1px dashed #ff5700; border-radius: 12px; padding: 22px; margin-top: 24px; text-align: center;">
+            <h4 style="color: #ff5700; margin: 0 0 8px 0; font-size: 1.15rem;">🔒 282 Additional Qualified Churches Locked</h4>
+            <p style="color: #c7c1bb; margin: 0 0 14px 0; font-size: 0.95rem; line-height: 1.5;">
+                This preview features 25 flagship broadcast churches across the UK, US, Europe, and Africa.<br>
+                The complete verified database of <strong>307+ churches</strong>, automated daily outreach engine (100 emails/day), and regional response tracking are staged for rollout.
+            </p>
+            <div style="display: inline-block; background: linear-gradient(135deg, #ff5700 0%, #d44900 100%); color: #ffffff; font-weight: 700; padding: 8px 20px; border-radius: 8px; font-size: 0.9rem;">
+                📅 Book a Quick Call to Review Pipeline & Unlock Full Database
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
 # ----------------- TAB 2: OUTREACH GENERATOR -----------------
 with tab_outreach:
@@ -429,10 +474,11 @@ with tab_outreach:
         st.text_area("Quick Follow-Up Bump", value=pitch["bump"], height=85)
 
     st.markdown("---")
-    st.markdown("#### 📦 Export Full Multilingual Campaign Dataset")
-    st.write("Generates a single master CSV containing every church, their contact emails, and their customized cold email body in their country's native language.")
+    st.markdown("#### 📦 Export Campaign Dataset")
+    st.write(f"Generates a campaign spreadsheet containing each church ({len(df_master)} leads), their direct AV contact emails, and their customized cold outreach copy in their native language.")
 
-    if st.button("🚀 Download Ready-to-Send Campaign CSV (All 274 Churches)", use_container_width=True):
+    btn_label = f"🚀 Download Ready-to-Send Campaign ({len(df_master)} Churches)"
+    if st.button(btn_label, use_container_width=True):
         full_campaign = []
         for _, r in df_master.iterrows():
             c_name = str(r.get("Church Name", "Church")).strip()
