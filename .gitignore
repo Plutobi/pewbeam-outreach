@@ -1,0 +1,12 @@
+# Environment & Secrets
+.env
+*.token
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Temporary logs
+*.log
