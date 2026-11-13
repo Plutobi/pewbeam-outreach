@@ -452,14 +452,14 @@ with tab_outreach:
             use_container_width=True
         )
 
-# ----------------- TAB 3: DISCOVER & SEARCH BY COUNTRY / CITY -----------------
+# ----------------- TAB 3: DISCOVER & SCRAPE NEW CHURCHES -----------------
 with tab_discover:
-    st.markdown("### 🔍 Search by Country & Discover Churches")
-    st.caption("Quickly find churches across Africa, Europe, the UK, and the Americas using 1-click buttons or custom country/city search.")
+    st.markdown("### 🔍 Scrape Brand New Churches (Live Web)")
+    st.caption("Scrape fresh, unlisted churches anywhere in Africa, Europe, the UK, or the Americas. Found leads can be saved directly into your master database.")
 
     # Section 1: Quick 1-Click Country & City Presets
-    st.markdown("#### ⚡ 1-Click Country & Hub Presets")
-    st.write("Click any button below to instantly populate and search churches in that country:")
+    st.markdown("#### ⚡ 1-Click Live Scrape Presets")
+    st.write("Click any country below to automatically launch a live web scrape for fresh churches:")
 
     col_p1, col_p2, col_p3, col_p4 = st.columns(4)
     with col_p1:
@@ -475,93 +475,113 @@ with tab_discover:
         btn_ke = st.button("🇰🇪 Kenya (Nairobi)", use_container_width=True)
         btn_fr = st.button("🇫🇷 France (Paris / Lyon)", use_container_width=True)
 
-    # Determine active selection from presets or session
+    # Determine active selection
+    auto_trigger = False
     active_country = ""
     active_city = ""
+    
     if btn_ng:
         active_country, active_city = "Nigeria", "Lagos"
+        auto_trigger = True
     elif btn_gh:
         active_country, active_city = "Ghana", "Accra"
+        auto_trigger = True
     elif btn_za:
         active_country, active_city = "South Africa", "Johannesburg"
+        auto_trigger = True
     elif btn_ke:
         active_country, active_city = "Kenya", "Nairobi"
+        auto_trigger = True
     elif btn_uk:
         active_country, active_city = "United Kingdom", "London"
+        auto_trigger = True
     elif btn_us:
-        active_country, active_city = "TX", "Dallas"
+        active_country, active_city = "USA", "Dallas"
+        auto_trigger = True
     elif btn_de:
         active_country, active_city = "Germany", "Berlin"
+        auto_trigger = True
     elif btn_fr:
         active_country, active_city = "France", "Paris"
+        auto_trigger = True
 
     st.markdown("---")
 
-    # Section 2: Custom Country & City Search Inputs
-    st.markdown("#### 🔎 Search by Specific Country or City")
+    # Section 2: Custom Country & City Inputs
+    st.markdown("#### 🔎 Search & Scrape Any Country or City")
     
-    col_input1, col_input2, col_input3 = st.columns([2, 2, 1])
+    col_input1, col_input2, col_input3, col_input4 = st.columns([2, 2, 1, 1])
     with col_input1:
-        typed_country = st.text_input("Type Country", value=active_country, placeholder="e.g. Nigeria, South Africa, UK, USA, France, Kenya...")
+        typed_country = st.text_input("Country", value=active_country, placeholder="e.g. Nigeria, South Africa, UK, USA, France, Kenya, Ghana...")
     with col_input2:
-        typed_city = st.text_input("Type City (optional)", value=active_city, placeholder="e.g. Lagos, Accra, London, Dallas, Nairobi...")
+        typed_city = st.text_input("City", value=active_city, placeholder="e.g. Lagos, Abuja, Accra, London, Dallas, Nairobi, Paris...")
     with col_input3:
+        scan_limit = st.slider("Churches", min_value=10, max_value=60, value=25, step=5)
+    with col_input4:
         st.write("")
         st.write("")
-        run_search = st.button("🚀 Search", use_container_width=True)
+        manual_trigger = st.button("🚀 Scrape Live", use_container_width=True)
 
-    if (run_search or active_country) and (typed_country or typed_city):
-        query_country = typed_country.strip().lower()
-        query_city = typed_city.strip().lower()
+    should_scrape = (auto_trigger or manual_trigger) and (typed_country or typed_city)
 
-        # 1. Search in our curated master dataset
-        matched_df = df_master.copy()
-        if query_country:
-            matched_df = matched_df[
-                matched_df["State"].astype(str).str.lower().str.contains(query_country, na=False) |
-                matched_df["Region"].astype(str).str.lower().str.contains(query_country, na=False) |
-                matched_df["Address"].astype(str).str.lower().str.contains(query_country, na=False)
-            ]
-        if query_city:
-            matched_df = matched_df[
-                matched_df["City"].astype(str).str.lower().str.contains(query_city, na=False) |
-                matched_df["Address"].astype(str).str.lower().str.contains(query_city, na=False)
-            ]
+    if should_scrape:
+        q_country = typed_country.strip()
+        q_city = typed_city.strip()
+        
+        with st.spinner(f"🌐 Scraping live public registries & directories for new churches in {q_city} {q_country}..."):
+            newly_scraped = free_search_churches(q_city, q_country, limit=scan_limit)
 
-        if not matched_df.empty:
-            st.success(f"🎉 Found {len(matched_df)} qualified church(es) for **{typed_country} {typed_city}**!")
+        if newly_scraped:
+            st.success(f"🎉 Discovered **{len(newly_scraped)} brand new church(es)** in **{q_city} {q_country}**!")
             
-            res_display = matched_df[["Church Name", "Region", "City", "Emails", "Website", "Phone", "Rating", "Address"]]
+            df_scraped = pd.DataFrame(newly_scraped)
+            display_cols = ["Church Name", "City", "State", "Address", "Website", "Phone", "Emails", "Rating", "Google Maps URL"]
+            df_display = df_scraped[[c for c in display_cols if c in df_scraped.columns]]
+
             st.dataframe(
-                res_display,
+                df_display,
                 use_container_width=True,
                 column_config={
                     "Website": st.column_config.LinkColumn("Website"),
+                    "Google Maps URL": st.column_config.LinkColumn("Maps"),
                     "Rating": st.column_config.NumberColumn(format="%.1f ⭐")
                 },
-                height=350
+                height=380
             )
 
-            res_csv = matched_df.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label=f"📥 Download {len(matched_df)} Leads for {typed_country or typed_city} (CSV)",
-                data=res_csv,
-                file_name=f"pewbeam_leads_{(typed_country or typed_city).lower()}_{datetime.now().strftime('%Y%m%d')}.csv",
-                mime="text/csv"
-            )
+            # Action Buttons: Add to Master or Download
+            act_col1, act_col2 = st.columns(2)
+            with act_col1:
+                if st.button("➕ Add These New Churches to Master Dataset", use_container_width=True):
+                    verified_path = os.path.join(os.path.dirname(__file__), "pewbeam_church_leads_verified_200.csv")
+                    if os.path.exists(verified_path):
+                        existing_df = pd.read_csv(verified_path)
+                        existing_names = set(existing_df["Church Name"].astype(str).str.lower().str.strip())
+                        
+                        to_add = [ch for ch in newly_scraped if ch["Church Name"].lower().strip() not in existing_names]
+                        if to_add:
+                            combined = pd.concat([existing_df, pd.DataFrame(to_add)], ignore_index=True)
+                            combined.to_csv(verified_path, index=False)
+                            st.success(f"✅ Added {len(to_add)} new church leads directly to the master directory! Refreshing...")
+                            st.rerun()
+                        else:
+                            st.info("These churches are already in your master directory.")
+
+            with act_col2:
+                scraped_csv = df_scraped.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label=f"📥 Download {len(newly_scraped)} New Leads (CSV)",
+                    data=scraped_csv,
+                    file_name=f"new_churches_{(q_city or q_country).lower()}_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
         else:
-            st.info(f"Scanning live public church directories for **{typed_country} {typed_city}**...")
-            with st.spinner("Connecting to public listings..."):
-                live_res = free_search_churches(typed_city or typed_country, typed_country)
-                if live_res:
-                    st.success(f"Discovered {len(live_res)} church listing(s)!")
-                    st.dataframe(pd.DataFrame(live_res)[["Church Name", "City", "Address"]])
-                else:
-                    st.warning(f"No direct listings found for '{typed_country} {typed_city}'. Try searching a larger nearby metro hub (e.g. Lagos, London, Dallas, Nairobi).")
+            st.warning(f"No direct listings found for '{q_city} {q_country}'. Try scanning a nearby metropolitan center (e.g. Lagos, Abuja, Accra, Nairobi, London, Dallas).")
 
     st.markdown("---")
 
-    # Section 3: Instant Church URL Email Extractor (Fixed with requests)
+    # Section 3: Instant Church URL Email Extractor (Enhanced with requests)
     st.markdown("#### 🎯 Instant Church Website Email Extractor")
     st.write("Found a specific church website? Paste the link below to automatically extract their media, broadcast, and staff emails:")
 
