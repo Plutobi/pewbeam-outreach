@@ -232,61 +232,69 @@ with st.sidebar:
     """)
     st.markdown("---")
 
-    # Download Excel Workbook directly from Sidebar (Curated 25-Lead Preview by default)
-    preview_excel_path = os.path.join(os.path.dirname(__file__), "Pewbeam_Church_Leads_Preview_25.xlsx")
+    # Download Excel Workbook directly from Sidebar (Curated 100-Lead Preview by default)
+    preview_100_excel = os.path.join(os.path.dirname(__file__), "Pewbeam_Church_Leads_Preview_100.xlsx")
+    preview_25_excel = os.path.join(os.path.dirname(__file__), "Pewbeam_Church_Leads_Preview_25.xlsx")
     master_excel_path = os.path.join(os.path.dirname(__file__), "Pewbeam_Qualified_Church_Leads_274.xlsx")
     
     st.markdown("#### 📥 Lead Export")
-    if os.path.exists(preview_excel_path):
-        with open(preview_excel_path, "rb") as f:
+    active_download_excel = preview_100_excel if os.path.exists(preview_100_excel) else preview_25_excel
+    if os.path.exists(active_download_excel):
+        with open(active_download_excel, "rb") as f:
             st.download_button(
-                label="📊 Download Curated Sample (25 Leads .xlsx)",
+                label="📊 Download Curated Sample (100 Leads .xlsx)",
                 data=f.read(),
-                file_name="Pewbeam_Church_Leads_Preview_25.xlsx",
+                file_name="Pewbeam_Church_Leads_Preview_100.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True
             )
             
     st.markdown("""
     <div style="background: rgba(255,87,0,0.08); border: 1px dashed #ff5700; border-radius: 8px; padding: 10px; margin-top: 8px; margin-bottom: 12px;">
-        <span style="color: #ff5700; font-size: 0.82rem; font-weight: bold;">🔒 300+ MASTER PIPELINE</span><br>
-        <span style="color: #a8a29d; font-size: 0.78rem;">Full database & daily automated sending engine are unlocked upon booking a call.</span>
+        <span style="color: #ff5700; font-size: 0.82rem; font-weight: bold;">🔒 200+ REMAINING PIPELINE</span><br>
+        <span style="color: #a8a29d; font-size: 0.78rem;">Full database of 307+ churches & daily automated sending engine are unlocked upon booking a call.</span>
     </div>
     """, unsafe_allow_html=True)
 
     # Optional Admin PIN to unlock full view during live calls
     with st.expander("🔐 Partner / Admin Unlock", expanded=False):
         admin_pin = st.text_input("Enter Passcode", type="password", key="admin_pin")
-        is_unlocked = (admin_pin.strip().lower() in ("unlock300", "pewbeam300", "admin"))
-        if is_unlocked:
-            st.success("✅ Master Database Unlocked (307 leads)")
+        clean_pin = admin_pin.strip().lower()
+        is_unlocked_300 = clean_pin in ("unlock300", "pewbeam300", "admin", "all")
+        is_unlocked_100 = clean_pin in ("unlock100", "unlock 100", "100")
+        
+        if is_unlocked_300:
+            st.success("✅ Full Master Database Unlocked (307 leads)")
+        elif is_unlocked_100:
+            st.success("✅ 100 Flagship Leads Tier Active")
         elif admin_pin:
-            st.warning("Preview Tier Active.")
+            st.warning("Preview Tier (100 Leads) Active.")
 
     st.markdown("---")
     st.markdown("[Visit Pewbeam.com ↗](https://pewbeam.com/)")
 
 # Datasets loading
 base_dir = os.path.dirname(__file__)
-preview_csv = os.path.join(base_dir, "pewbeam_church_leads_preview_25.csv")
+preview_100_csv = os.path.join(base_dir, "pewbeam_church_leads_preview_100.csv")
+preview_25_csv = os.path.join(base_dir, "pewbeam_church_leads_preview_25.csv")
 master_csv = os.path.join(base_dir, "pewbeam_church_leads_verified_200.csv")
 
-if not os.path.exists(preview_csv) and os.path.exists(master_csv):
-    # Fallback to slice first 25
-    df_raw_all = pd.read_csv(master_csv)
-    df_preview = df_raw_all.head(25)
-else:
-    df_preview = pd.read_csv(preview_csv) if os.path.exists(preview_csv) else pd.DataFrame()
+df_master_all = pd.read_csv(master_csv) if os.path.exists(master_csv) else pd.DataFrame()
 
-df_master_all = pd.read_csv(master_csv) if os.path.exists(master_csv) else df_preview
+if os.path.exists(preview_100_csv):
+    df_preview_100 = pd.read_csv(preview_100_csv)
+else:
+    df_preview_100 = df_master_all.head(100)
 
 # Select active dataset based on unlock status
-if 'is_unlocked' in locals() and is_unlocked:
+if 'is_unlocked_300' in locals() and is_unlocked_300:
     df_master = df_master_all.copy()
     tier_label = "Full Master Database (307 Leads)"
+    is_unlocked = True
 else:
-    df_master = df_preview.copy()
-    tier_label = "Curated Preview Tier (25 Flagship Leads)"
+    df_master = df_preview_100.copy()
+    tier_label = f"Curated Outreach Tier ({len(df_master)} Flagship Leads)"
+    is_unlocked = False
 
 # Country mapping
 def get_clean_region(row):
@@ -411,11 +419,12 @@ with tab_prospects:
         )
 
     if 'is_unlocked' in locals() and not is_unlocked:
-        st.markdown("""
+        remaining_locked = max(len(df_master_all) - len(df_master), 0)
+        st.markdown(f"""
         <div style="background: #14100e; border: 1px dashed #ff5700; border-radius: 12px; padding: 22px; margin-top: 24px; text-align: center;">
-            <h4 style="color: #ff5700; margin: 0 0 8px 0; font-size: 1.15rem;">🔒 282 Additional Qualified Churches Locked</h4>
+            <h4 style="color: #ff5700; margin: 0 0 8px 0; font-size: 1.15rem;">🔒 {remaining_locked}+ Additional Qualified Churches Locked</h4>
             <p style="color: #c7c1bb; margin: 0 0 14px 0; font-size: 0.95rem; line-height: 1.5;">
-                This preview features 25 flagship broadcast churches across the UK, US, Europe, and Africa.<br>
+                This tier features {len(df_master)} flagship broadcast churches across the UK, US, Europe, and Africa.<br>
                 The complete verified database of <strong>307+ churches</strong>, automated daily outreach engine (100 emails/day), and regional response tracking are staged for rollout.
             </p>
             <div style="display: inline-block; background: linear-gradient(135deg, #ff5700 0%, #d44900 100%); color: #ffffff; font-weight: 700; padding: 8px 20px; border-radius: 8px; font-size: 0.9rem;">
