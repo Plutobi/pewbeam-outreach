@@ -19,7 +19,9 @@ df = pd.read_csv(csv_path)
 # Map countries/regions
 def map_country(state):
     s = str(state).strip()
-    if s in ("United Kingdom", "UK"):
+    if s in ("Nigeria", "Ghana", "Kenya", "South Africa", "Uganda", "Rwanda"):
+        return f"🌍 Africa ({s})"
+    elif s in ("United Kingdom", "UK"):
         return "🇬🇧 United Kingdom"
     elif s in ("Germany", "Deutschland", "Austria", "Switzerland"):
         return "🇩🇪 Germany & DACH"
@@ -86,10 +88,10 @@ ws_summary.row_dimensions[3].height = 22
 
 # KPI Cards
 kpis = [
-    ("B5", "C5", "TOTAL QUALIFIED CHURCHES", "274"),
+    ("B5", "C5", "TOTAL QUALIFIED CHURCHES", str(len(df))),
     ("B6", "C6", "DIRECT MEDIA / TECH CONTACTS", "100%"),
-    ("B7", "C7", "EUROPEAN & UK HUBS", "85"),
-    ("B8", "C8", "US BROADCAST MEGACHURCHES", "189"),
+    ("B7", "C7", "AFRICAN MEGACHURCH HUBS", "35"),
+    ("B8", "C8", "EUROPE, UK & US HUBS", str(len(df) - 35)),
 ]
 
 for cell_label, cell_val, label, val in kpis:

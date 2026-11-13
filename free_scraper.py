@@ -3,41 +3,41 @@ Free Church & Lead Scraper Engine (Zero-Cost / No Apify)
 =========================================================
 Finds churches and crawls their websites for verified contact and media team emails
 without requiring any API keys, paid credits, or subscriptions.
+Uses robust `requests` and `BeautifulSoup` parsing.
 """
 
 import re
-import time
-import urllib.request
-import urllib.parse
+import requests
 from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup
-from datetime import datetime
 import pandas as pd
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9,de;q=0.8,fr;q=0.7",
+    "Accept-Language": "en-US,en;q=0.9",
 }
 
 COMMON_CONTACT_PATHS = [
-    "",  # Homepage
+    "",
     "/contact",
     "/contact-us",
+    "/contactus",
     "/about",
     "/about-us",
     "/team",
     "/our-team",
     "/staff",
-    "/leadership",
     "/media",
-    "/impressum",  # Crucial for German/Austrian/Swiss churches
-    "/mentions-legales"  # Crucial for French churches
+    "/connect",
+    "/impressum",
+    "/mentions-legales"
 ]
 
 def clean_url(url: str) -> str:
     if not url:
         return ""
+    url = url.strip()
     if not url.startswith("http"):
         url = "https://" + url
     parsed = urlparse(url)
@@ -51,17 +51,26 @@ def extract_emails_from_html(html_text: str) -> list[str]:
     pattern = r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
     found = re.findall(pattern, html_text)
     
-    # 2. Filter out false positives, image extensions, tracking scripts
-    ignore_domains = {"example.com", "domain.com", "sentry.io", "wixpress.com", "schema.org", "w3.org", "googleapis.com"}
-    ignore_extensions = {".png", ".jpg", ".jpeg", ".webp", ".svg", ".gif", ".css", ".js", ".woff"}
+    # 2. Also search mailto: links specifically
+    try:
+        soup = BeautifulSoup(html_text, "html.parser")
+        for a in soup.find_all("a", href=True):
+            href = a["href"].strip()
+            if href.lower().startswith("mailto:"):
+                mail = href[7:].split("?")[0].strip()
+                if mail:
+                    found.append(mail)
+    except Exception:
+        pass
+
+    ignore_domains = {"example.com", "domain.com", "sentry.io", "wixpress.com", "schema.org", "w3.org", "googleapis.com", "cloudflare.com"}
+    ignore_extensions = {".png", ".jpg", ".jpeg", ".webp", ".svg", ".gif", ".css", ".js", ".woff", ".woff2", ".ttf"}
     
     cleaned = set()
     for e in found:
-        e_low = e.lower().strip(".,;:()\"'<>[]")
-        # Check extensions
+        e_low = e.lower().strip(".,;:()\"'<>[]/ ")
         if any(e_low.endswith(ext) for ext in ignore_extensions):
             continue
-        # Check domain
         parts = e_low.split("@")
         if len(parts) == 2:
             domain = parts[1]
@@ -74,7 +83,7 @@ def extract_emails_from_html(html_text: str) -> list[str]:
     # Sort with priority given to media/av/tech/production/broadcast
     def priority_score(email):
         high_pri = ("media", "av", "tech", "production", "broadcast", "beamer", "multimedia", "regie")
-        mid_pri = ("info", "contact", "hello", "office", "pastor", "admin")
+        mid_pri = ("info", "contact", "hello", "office", "pastor", "admin", "church")
         for h in high_pri:
             if h in email:
                 return 0
@@ -85,9 +94,9 @@ def extract_emails_from_html(html_text: str) -> list[str]:
 
     return sorted(list(cleaned), key=priority_score)
 
-def crawl_church_website_emails(website_url: str, max_pages: int = 3, timeout: int = 6) -> list[str]:
+def crawl_church_website_emails(website_url: str, max_pages: int = 3, timeout: int = 8) -> list[str]:
     """
-    Crawls church homepage and common contact/staff pages to extract direct emails.
+    Crawls church homepage and common contact/staff pages to extract direct emails using requests.
     """
     base = clean_url(website_url)
     if not base:
@@ -96,6 +105,9 @@ def crawl_church_website_emails(website_url: str, max_pages: int = 3, timeout: i
     collected_emails = set()
     visited_urls = set()
 
+    session = requests.Session()
+    session.headers.update(HEADERS)
+
     for path in COMMON_CONTACT_PATHS[:max_pages]:
         target_url = urljoin(base, path)
         if target_url in visited_urls:
@@ -103,11 +115,9 @@ def crawl_church_website_emails(website_url: str, max_pages: int = 3, timeout: i
         visited_urls.add(target_url)
 
         try:
-            req = urllib.request.Request(target_url, headers=HEADERS)
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                # Limit read to 500KB to stay fast
-                content = resp.read(500000).decode("utf-8", errors="ignore")
-                found = extract_emails_from_html(content)
+            resp = session.get(target_url, timeout=timeout, allow_redirects=True)
+            if resp.status_code == 200:
+                found = extract_emails_from_html(resp.text)
                 collected_emails.update(found)
                 # If we found direct media/tech emails, stop early
                 if any(any(k in e for k in ("media", "av", "tech", "production", "broadcast")) for e in found):
@@ -119,39 +129,39 @@ def crawl_church_website_emails(website_url: str, max_pages: int = 3, timeout: i
 
 def free_search_churches(city: str, country: str = "", limit: int = 15, status_callback=None):
     """
-    Free discovery engine: Queries public church listings & directories for a given city.
+    Searches public directories for churches in a given city or country.
     """
     status_callback = status_callback or (lambda msg: None)
-    status_callback(f"Searching public listings for churches in {city}...")
+    status_callback(f"Searching public listings for churches in {city} {country}...")
     
     results = []
     
-    # Try Nominatim OpenStreetMap with custom User-Agent
     try:
         query_param = f"church in {city}"
         if country:
             query_param += f" {country}"
-        url = f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(query_param)}&format=json&limit={limit}&addressdetails=1"
-        req = urllib.request.Request(url, headers={"User-Agent": "PewbeamOutreachEngine/2.0 (contact@pewbeam.com)"})
-        with urllib.request.urlopen(req, timeout=8) as r:
-            data = pd.read_json(r.read().decode("utf-8"))
-            for _, row in data.iterrows():
+            
+        url = f"https://nominatim.openstreetmap.org/search?q={requests.utils.quote(query_param)}&format=json&limit={limit}&addressdetails=1"
+        resp = requests.get(url, headers={"User-Agent": "PewbeamOutreachEngine/2.0 (contact@pewbeam.com)"}, timeout=8)
+        if resp.status_code == 200:
+            data = resp.json()
+            for row in data:
                 name = row.get("name")
                 disp = str(row.get("display_name", ""))
                 if name and "church" in (str(name) + disp).lower():
                     results.append({
                         "Church Name": name,
-                        "City": city,
-                        "State": country or "Europe",
+                        "City": city or "Global",
+                        "State": country or "International",
                         "Address": disp[:80],
                         "Website": "",
                         "Phone": "",
                         "Rating": 4.8,
                         "Reviews Count": 120,
-                        "Google Maps URL": f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote(name + ' ' + city)}",
-                        "Emails": []
+                        "Google Maps URL": f"https://www.google.com/maps/search/?api=1&query={requests.utils.quote(name + ' ' + city)}",
+                        "Emails": ""
                     })
     except Exception as e:
-        status_callback(f"Open directory lookup completed with status: {e}")
+        status_callback(f"Directory status: {e}")
 
     return results

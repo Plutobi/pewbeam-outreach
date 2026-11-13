@@ -215,6 +215,7 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("#### 🌍 Market Footprint")
     st.markdown("""
+    * 🌍 **Africa:** Lagos, Abuja, Accra, Johannesburg, Nairobi
     * 🇺🇸 **USA:** Megachurches (1,000+ members)
     * 🇬🇧 **UK:** London, Manchester, Birmingham
     * 🇩🇪 **DACH:** Berlin, Munich, Zurich, Vienna
@@ -266,7 +267,9 @@ df_master = pd.read_csv(default_file)
 def get_clean_region(row):
     st_val = str(row.get("State", "")).strip()
     city_val = str(row.get("City", "")).strip()
-    if st_val in ("United Kingdom", "UK"):
+    if st_val in ("Nigeria", "Ghana", "Kenya", "South Africa", "Uganda", "Rwanda"):
+        return f"🌍 Africa ({st_val})"
+    elif st_val in ("United Kingdom", "UK"):
         return "🇬🇧 United Kingdom"
     elif st_val in ("Germany", "Deutschland", "Austria", "Switzerland"):
         return "🇩🇪 Germany & DACH"
@@ -303,9 +306,9 @@ st.markdown("<br>", unsafe_allow_html=True)
 
 # Main Navigation Tabs
 tab_prospects, tab_outreach, tab_discover = st.tabs([
-    "⛪ Church Directory (274 Leads)",
+    f"⛪ Church Directory ({len(df_master)} Leads)",
     "✉️ Multilingual Outreach & Pitches",
-    "🔍 Discover New Churches"
+    "🔍 Search by Country / City & Discover"
 ])
 
 # ----------------- TAB 1: CHURCH DIRECTORY -----------------
@@ -449,51 +452,133 @@ with tab_outreach:
             use_container_width=True
         )
 
-# ----------------- TAB 3: DISCOVER NEW CHURCHES -----------------
+# ----------------- TAB 3: DISCOVER & SEARCH BY COUNTRY / CITY -----------------
 with tab_discover:
-    st.markdown("### 🔍 Discover New Churches & Extract Contacts")
-    st.caption("Easily expand your target list across new cities or extract media emails directly from any church URL.")
+    st.markdown("### 🔍 Search by Country & Discover Churches")
+    st.caption("Quickly find churches across Africa, Europe, the UK, and the Americas using 1-click buttons or custom country/city search.")
 
-    sub_c1, sub_c2 = st.columns(2)
+    # Section 1: Quick 1-Click Country & City Presets
+    st.markdown("#### ⚡ 1-Click Country & Hub Presets")
+    st.write("Click any button below to instantly populate and search churches in that country:")
 
-    with sub_c1:
-        st.markdown("#### 1. Instant Church Website Contact Extractor")
-        st.write("Found a church website? The built-in crawler will automatically inspect their `/contact`, `/team`, and `/media` pages to locate verified staff and AV emails.")
-        
-        target_url = st.text_input("Church Website URL", placeholder="https://gasstreet.church")
-        
-        if st.button("🔎 Inspect & Extract Emails", use_container_width=True):
-            if not target_url:
-                st.warning("Please enter a website URL first.")
+    col_p1, col_p2, col_p3, col_p4 = st.columns(4)
+    with col_p1:
+        btn_ng = st.button("🇳🇬 Nigeria (Lagos / Abuja)", use_container_width=True)
+        btn_uk = st.button("🇬🇧 UK (London / Manchester)", use_container_width=True)
+    with col_p2:
+        btn_gh = st.button("🇬🇭 Ghana (Accra)", use_container_width=True)
+        btn_us = st.button("🇺🇸 USA (Dallas / Atlanta)", use_container_width=True)
+    with col_p3:
+        btn_za = st.button("🇿🇦 South Africa (Joburg)", use_container_width=True)
+        btn_de = st.button("🇩🇪 Germany (Berlin / Munich)", use_container_width=True)
+    with col_p4:
+        btn_ke = st.button("🇰🇪 Kenya (Nairobi)", use_container_width=True)
+        btn_fr = st.button("🇫🇷 France (Paris / Lyon)", use_container_width=True)
+
+    # Determine active selection from presets or session
+    active_country = ""
+    active_city = ""
+    if btn_ng:
+        active_country, active_city = "Nigeria", "Lagos"
+    elif btn_gh:
+        active_country, active_city = "Ghana", "Accra"
+    elif btn_za:
+        active_country, active_city = "South Africa", "Johannesburg"
+    elif btn_ke:
+        active_country, active_city = "Kenya", "Nairobi"
+    elif btn_uk:
+        active_country, active_city = "United Kingdom", "London"
+    elif btn_us:
+        active_country, active_city = "TX", "Dallas"
+    elif btn_de:
+        active_country, active_city = "Germany", "Berlin"
+    elif btn_fr:
+        active_country, active_city = "France", "Paris"
+
+    st.markdown("---")
+
+    # Section 2: Custom Country & City Search Inputs
+    st.markdown("#### 🔎 Search by Specific Country or City")
+    
+    col_input1, col_input2, col_input3 = st.columns([2, 2, 1])
+    with col_input1:
+        typed_country = st.text_input("Type Country", value=active_country, placeholder="e.g. Nigeria, South Africa, UK, USA, France, Kenya...")
+    with col_input2:
+        typed_city = st.text_input("Type City (optional)", value=active_city, placeholder="e.g. Lagos, Accra, London, Dallas, Nairobi...")
+    with col_input3:
+        st.write("")
+        st.write("")
+        run_search = st.button("🚀 Search", use_container_width=True)
+
+    if (run_search or active_country) and (typed_country or typed_city):
+        query_country = typed_country.strip().lower()
+        query_city = typed_city.strip().lower()
+
+        # 1. Search in our curated master dataset
+        matched_df = df_master.copy()
+        if query_country:
+            matched_df = matched_df[
+                matched_df["State"].astype(str).str.lower().str.contains(query_country, na=False) |
+                matched_df["Region"].astype(str).str.lower().str.contains(query_country, na=False) |
+                matched_df["Address"].astype(str).str.lower().str.contains(query_country, na=False)
+            ]
+        if query_city:
+            matched_df = matched_df[
+                matched_df["City"].astype(str).str.lower().str.contains(query_city, na=False) |
+                matched_df["Address"].astype(str).str.lower().str.contains(query_city, na=False)
+            ]
+
+        if not matched_df.empty:
+            st.success(f"🎉 Found {len(matched_df)} qualified church(es) for **{typed_country} {typed_city}**!")
+            
+            res_display = matched_df[["Church Name", "Region", "City", "Emails", "Website", "Phone", "Rating", "Address"]]
+            st.dataframe(
+                res_display,
+                use_container_width=True,
+                column_config={
+                    "Website": st.column_config.LinkColumn("Website"),
+                    "Rating": st.column_config.NumberColumn(format="%.1f ⭐")
+                },
+                height=350
+            )
+
+            res_csv = matched_df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label=f"📥 Download {len(matched_df)} Leads for {typed_country or typed_city} (CSV)",
+                data=res_csv,
+                file_name=f"pewbeam_leads_{(typed_country or typed_city).lower()}_{datetime.now().strftime('%Y%m%d')}.csv",
+                mime="text/csv"
+            )
+        else:
+            st.info(f"Scanning live public church directories for **{typed_country} {typed_city}**...")
+            with st.spinner("Connecting to public listings..."):
+                live_res = free_search_churches(typed_city or typed_country, typed_country)
+                if live_res:
+                    st.success(f"Discovered {len(live_res)} church listing(s)!")
+                    st.dataframe(pd.DataFrame(live_res)[["Church Name", "City", "Address"]])
+                else:
+                    st.warning(f"No direct listings found for '{typed_country} {typed_city}'. Try searching a larger nearby metro hub (e.g. Lagos, London, Dallas, Nairobi).")
+
+    st.markdown("---")
+
+    # Section 3: Instant Church URL Email Extractor (Fixed with requests)
+    st.markdown("#### 🎯 Instant Church Website Email Extractor")
+    st.write("Found a specific church website? Paste the link below to automatically extract their media, broadcast, and staff emails:")
+
+    col_u1, col_u2 = st.columns([3, 1])
+    with col_u1:
+        target_url = st.text_input("Church Website URL", placeholder="https://audaciouschurch.com/ or https://elevationng.org/")
+    with col_u2:
+        st.write("")
+        st.write("")
+        inspect_btn = st.button("🔎 Inspect & Extract Emails", use_container_width=True)
+
+    if inspect_btn and target_url:
+        with st.spinner(f"Crawling {target_url}..."):
+            extracted = crawl_church_website_emails(target_url)
+            if extracted:
+                st.success(f"🎉 Discovered {len(extracted)} verified email(s) on {target_url}:")
+                for em in extracted:
+                    st.markdown(f"- `<span class='pill-active'>{em}</span>`", unsafe_allow_html=True)
             else:
-                with st.spinner(f"Crawling {target_url}..."):
-                    extracted = crawl_church_website_emails(target_url)
-                    if extracted:
-                        st.success(f"Discovered {len(extracted)} direct contact(s):")
-                        for em in extracted:
-                            st.markdown(f"- `{em}`")
-                    else:
-                        st.info("No direct email detected on public pages. Try checking their contact form or social links.")
-
-    with sub_c2:
-        st.markdown("#### 2. Scan New Cities")
-        st.write("Search for additional churches across any metropolitan area:")
-        
-        new_city = st.text_input("Enter City / Region", placeholder="e.g. Manchester UK, Phoenix AZ, Lyon France")
-        max_scan = st.slider("Target Number of Churches", 5, 50, 15)
-
-        if st.button("🚀 Scan City", use_container_width=True):
-            if not new_city:
-                st.warning("Please type a city name.")
-            else:
-                with st.spinner(f"Scanning public directories for churches in {new_city}..."):
-                    parts = new_city.split()
-                    c_name = parts[0]
-                    c_country = " ".join(parts[1:]) if len(parts) > 1 else ""
-                    results = free_search_churches(c_name, c_country, limit=max_scan)
-                    
-                    if results:
-                        st.success(f"Found {len(results)} church listings!")
-                        st.dataframe(pd.DataFrame(results)[["Church Name", "City", "Address"]])
-                    else:
-                        st.info("Directory scan completed. Try running another major city hub.")
+                st.info("No direct plaintext email detected on the public contact pages. They may be using an embedded contact form.")
