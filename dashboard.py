@@ -195,8 +195,16 @@ def get_dataset_id(run_obj):
     return getattr(run_obj, "default_dataset_id", None) or getattr(run_obj, "defaultDatasetId", None) or ""
 
 def get_env_token():
+    # 1. Streamlit Cloud Secrets (for live hosting)
+    try:
+        if "APIFY_API_TOKEN" in st.secrets:
+            return str(st.secrets["APIFY_API_TOKEN"]).strip()
+    except Exception:
+        pass
+    # 2. Environment variable
     if os.environ.get("APIFY_API_TOKEN"):
         return os.environ.get("APIFY_API_TOKEN").strip()
+    # 3. Local .env file
     env_path = os.path.join(os.path.dirname(__file__), ".env")
     if os.path.exists(env_path):
         with open(env_path, "r", encoding="utf-8") as f:
