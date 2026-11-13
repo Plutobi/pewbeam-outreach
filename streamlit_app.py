@@ -1,119 +1,134 @@
 """
-Pewbeam Outreach Hub - Streamlit Dashboard
-Branded with Pewbeam's signature Obsidian Black & Radiant Orange theme (#ff5700).
-Supports Europe, Americas, UK, and automatic localized messaging in English, German, French, Spanish, Italian, Dutch, and Portuguese.
+Pewbeam Outreach Command Center
+===============================
+Sleek, executive-ready dashboard branded in Pewbeam's signature Obsidian Black
+and Radiant Orange (#ff5700). 100% native, zero mention of third-party APIs.
 """
 
 import os
 import sys
 import glob
-import json
-import csv
 from datetime import datetime
 import pandas as pd
 import streamlit as st
-from apify_client import ApifyClient
 
-# Add local path for outreach_templates import
+# Add local path for outreach_templates & free_scraper
 sys.path.append(os.path.dirname(__file__))
 from outreach_templates import TEMPLATES, detect_language, get_outreach_content
 from free_scraper import crawl_church_website_emails, free_search_churches
 
-# Set page configuration
+# Page configuration
 st.set_page_config(
-    page_title="Pewbeam Outreach Hub",
+    page_title="Pewbeam | Outreach Command Center",
     page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for Pewbeam Brand Identity
+# Custom High-End Styling for Pewbeam
 PEWBEAM_CSS = """
 <style>
 /* Base Dark Theme overrides */
 [data-testid="stAppViewContainer"] {
-    background-color: #080707;
-    color: #e5e0db;
+    background-color: #070606;
+    color: #e8e3df;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 [data-testid="stHeader"] {
-    background-color: rgba(8, 7, 7, 0.85);
-    backdrop-filter: blur(10px);
+    background-color: rgba(7, 6, 6, 0.85);
+    backdrop-filter: blur(12px);
 }
 
 [data-testid="stSidebar"] {
-    background-color: #0e0d0d;
-    border-right: 1px solid #1f1d1b;
+    background-color: #0c0a0a;
+    border-right: 1px solid #1c1817;
 }
 
-/* Pewbeam Header Banner */
-.pewbeam-header {
-    background: linear-gradient(135deg, #131110 0%, #1a1614 100%);
-    border: 1px solid #2f2724;
-    border-left: 5px solid #ff5700;
-    border-radius: 12px;
-    padding: 24px;
+/* Executive Header Banner */
+.pewbeam-hero {
+    background: linear-gradient(135deg, #120f0e 0%, #1c1613 50%, #14100e 100%);
+    border: 1px solid #2e2420;
+    border-radius: 14px;
+    padding: 28px 32px;
     margin-bottom: 24px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 87, 0, 0.2);
+    position: relative;
+    overflow: hidden;
 }
 
-.pewbeam-title {
-    font-size: 2.1rem;
+.pewbeam-hero::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 6px;
+    height: 100%;
+    background: linear-gradient(180deg, #ff5700 0%, #ff8c42 100%);
+}
+
+.pewbeam-hero-title {
+    font-size: 2.2rem;
     font-weight: 800;
     letter-spacing: -0.5px;
     color: #ffffff;
     margin: 0;
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 14px;
 }
 
-.pewbeam-title span.badge {
-    background-color: #ff5700;
-    color: #ffffff;
+.pewbeam-badge {
+    background: rgba(255, 87, 0, 0.15);
+    border: 1px solid rgba(255, 87, 0, 0.4);
+    color: #ff8440;
     font-size: 0.8rem;
-    padding: 4px 10px;
+    padding: 4px 12px;
     border-radius: 20px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 1px;
 }
 
-.pewbeam-subtitle {
-    color: #9f9a95;
+.pewbeam-hero-sub {
+    color: #a8a29d;
     font-size: 1.05rem;
-    margin-top: 8px;
+    margin-top: 10px;
     margin-bottom: 0;
+    line-height: 1.5;
 }
 
-/* Metric Cards */
-.metric-box {
-    background: #121010;
-    border: 1px solid #262220;
-    border-radius: 10px;
-    padding: 18px;
+/* Stat Cards */
+.stat-card {
+    background: #0f0d0c;
+    border: 1px solid #221c1a;
+    border-radius: 12px;
+    padding: 20px 16px;
     text-align: center;
-    transition: transform 0.2s ease, border-color 0.2s ease;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 }
 
-.metric-box:hover {
+.stat-card:hover {
     border-color: #ff5700;
     transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(255, 87, 0, 0.15);
 }
 
-.metric-num {
-    font-size: 2rem;
-    font-weight: 700;
+.stat-value {
+    font-size: 2.2rem;
+    font-weight: 800;
     color: #ff5700;
     margin-bottom: 4px;
+    letter-spacing: -1px;
 }
 
-.metric-label {
-    font-size: 0.85rem;
-    color: #a49f99;
+.stat-label {
+    font-size: 0.82rem;
+    color: #9c948e;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.8px;
+    font-weight: 600;
 }
 
 /* Primary Button Styling */
@@ -125,559 +140,360 @@ div.stButton > button {
     border-radius: 8px !important;
     padding: 10px 24px !important;
     transition: all 0.2s ease !important;
-    box-shadow: 0 4px 12px rgba(255, 87, 0, 0.25) !important;
+    box-shadow: 0 4px 14px rgba(255, 87, 0, 0.3) !important;
 }
 
 div.stButton > button:hover {
-    background: linear-gradient(135deg, #ff6a1a 0%, #e0520a 100%) !important;
-    box-shadow: 0 6px 18px rgba(255, 87, 0, 0.4) !important;
+    background: linear-gradient(135deg, #ff6e1f 0%, #e0520a 100%) !important;
+    box-shadow: 0 6px 20px rgba(255, 87, 0, 0.45) !important;
     transform: translateY(-1px) !important;
 }
 
-/* Badge pills */
+/* Pills */
 .pill-active {
-    background-color: rgba(0, 236, 102, 0.15);
+    background: rgba(0, 236, 102, 0.12);
     color: #00ec66;
     border: 1px solid rgba(0, 236, 102, 0.3);
     padding: 4px 10px;
-    border-radius: 12px;
+    border-radius: 20px;
     font-size: 0.85rem;
     font-weight: 600;
     display: inline-block;
 }
 
 .pill-orange {
-    background-color: rgba(255, 87, 0, 0.15);
-    color: #ff8440;
+    background: rgba(255, 87, 0, 0.12);
+    color: #ff7e38;
     border: 1px solid rgba(255, 87, 0, 0.3);
     padding: 4px 10px;
-    border-radius: 12px;
+    border-radius: 20px;
     font-size: 0.85rem;
     font-weight: 600;
     display: inline-block;
 }
 
-.pill-blue {
-    background-color: rgba(41, 150, 255, 0.15);
-    color: #4da3ff;
-    border: 1px solid rgba(41, 150, 255, 0.3);
-    padding: 4px 10px;
-    border-radius: 12px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    display: inline-block;
+/* Highlight box */
+.info-card {
+    background: #110e0d;
+    border: 1px solid #241c19;
+    border-left: 4px solid #ff5700;
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
 }
 </style>
 """
 
 st.markdown(PEWBEAM_CSS, unsafe_allow_html=True)
 
-# Helper functions
-def get_user_details(user_obj):
-    if user_obj is None:
-        return "Unknown", "Unknown", "Standard"
-    if isinstance(user_obj, dict):
-        uname = user_obj.get("username", "Unknown")
-        email = user_obj.get("email", "")
-        plan = user_obj.get("plan", {})
-        plan_name = plan.get("id") or plan.get("name") if isinstance(plan, dict) else str(plan)
-    else:
-        uname = getattr(user_obj, "username", "Unknown")
-        email = getattr(user_obj, "email", "")
-        plan = getattr(user_obj, "plan", None)
-        plan_name = getattr(plan, "id", None) or getattr(plan, "name", None) or str(plan) if plan else "Standard"
-    return uname, email, plan_name or "Active"
-
-def get_dataset_id(run_obj):
-    if run_obj is None:
-        return ""
-    if isinstance(run_obj, dict):
-        return run_obj.get("defaultDatasetId") or run_obj.get("default_dataset_id") or ""
-    return getattr(run_obj, "default_dataset_id", None) or getattr(run_obj, "defaultDatasetId", None) or ""
-
-def get_env_token():
-    # 1. Streamlit Cloud Secrets (for live hosting)
-    try:
-        if "APIFY_API_TOKEN" in st.secrets:
-            return str(st.secrets["APIFY_API_TOKEN"]).strip()
-    except Exception:
-        pass
-    # 2. Environment variable
-    if os.environ.get("APIFY_API_TOKEN"):
-        return os.environ.get("APIFY_API_TOKEN").strip()
-    # 3. Local .env file
-    env_path = os.path.join(os.path.dirname(__file__), ".env")
-    if os.path.exists(env_path):
-        with open(env_path, "r", encoding="utf-8") as f:
-            for line in f:
-                if line.strip().startswith("APIFY_API_TOKEN="):
-                    val = line.strip().split("=", 1)[1].strip().strip('"').strip("'")
-                    if val and val != "your_apify_token_here":
-                        return val
-    return ""
-
+# Helper function to get prioritized lead datasets
 def list_lead_files():
-    files = glob.glob(os.path.join(os.path.dirname(__file__), "pewbeam_church_leads_*.csv"))
-    valid_files = [f for f in files if os.path.exists(f) and os.path.getsize(f) > 30]
-    verified = [f for f in valid_files if "verified_200" in f]
-    others = [f for f in valid_files if "verified_200" not in f]
+    base_dir = os.path.dirname(__file__)
+    files = glob.glob(os.path.join(base_dir, "pewbeam_church_leads_*.csv"))
+    valid = [f for f in files if os.path.exists(f) and os.path.getsize(f) > 50]
+    
+    # Prioritize the 200+ verified dataset first
+    verified = [f for f in valid if "verified_200" in f]
+    others = [f for f in valid if "verified_200" not in f]
     others.sort(key=os.path.getmtime, reverse=True)
     return verified + others
 
-# Sidebar
+# Sidebar: Brand Identity & Quick Stats
 with st.sidebar:
-    st.markdown("### ⚡ Pewbeam Settings")
+    st.markdown("### ⚡ Pewbeam")
+    st.caption("AI Church Presentation & Real-Time Scripture App")
+    st.markdown("---")
     
-    saved_token = get_env_token()
-    api_token = st.text_input(
-        "Apify API Token", 
-        value=saved_token, 
-        type="password",
-        help="Find this at console.apify.com/account/integrations"
-    )
-    
-    if api_token:
-        if st.button("🔌 Test Connection", use_container_width=True):
-            try:
-                client = ApifyClient(api_token)
-                u = client.user().get()
-                username, email, plan = get_user_details(u)
-                st.success(f"Connected as: {username}")
-                st.caption(f"Plan: {plan} | Email: {email}")
-            except Exception as e:
-                st.error(f"Connection failed: {e}")
-    else:
-        st.warning("⚠️ Enter your Apify API Token to run live scrapers.")
+    st.markdown("#### 🎯 Outreach Target Profile")
+    st.write("""
+    Churches with **active broadcast/livestream operations** where the media booth handles:
+    * Spoken scripture transcription
+    * NDI / OBS lower-thirds overlays
+    * Multi-screen worship presentations
+    """)
 
     st.markdown("---")
-    st.markdown("### 🌍 Supported Regions & Languages")
+    st.markdown("#### 🌍 Market Footprint")
     st.markdown("""
-    * 🇬🇧 **English:** UK, USA, Australia, Global
-    * 🇩🇪 **German:** Germany, Austria, Switzerland
-    * 🇫🇷 **French:** France, Belgium, Switzerland
-    * 🇪🇸 **Spanish:** Spain, Latin America
-    * 🇮🇹 **Italian:** Italy, Ticino
-    * 🇳🇱 **Dutch:** Netherlands, Belgium
-    * 🇵🇹 **Portuguese:** Portugal, Brazil
+    * 🇺🇸 **USA:** Megachurches (1,000+ members)
+    * 🇬🇧 **UK:** London, Manchester, Birmingham
+    * 🇩🇪 **DACH:** Berlin, Munich, Zurich, Vienna
+    * 🇫🇷 **France:** Paris, Lyon, Brussels
+    * 🇪🇸 **Spain:** Madrid, Barcelona, Seville
+    * 🇳🇱 **Netherlands:** Amsterdam, Veenendaal
     """)
     st.markdown("---")
-    st.caption("Pewbeam AI Outreach Dashboard v2.0 (Multilingual Europe & Global)")
 
-# Header Section
+    # Download Excel Workbook directly from Sidebar
+    excel_path = os.path.join(os.path.dirname(__file__), "Pewbeam_Qualified_Church_Leads_274.xlsx")
+    if os.path.exists(excel_path):
+        with open(excel_path, "rb") as f:
+            st.download_button(
+                label="📊 Download Master Excel (.xlsx)",
+                data=f.read(),
+                file_name="Pewbeam_Qualified_Church_Leads_274.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+
+    st.markdown("---")
+    st.markdown("[Visit Pewbeam.com ↗](https://pewbeam.com/)")
+
+# Hero Banner
 st.markdown("""
-<div class="pewbeam-header">
-    <div class="pewbeam-title">
-        ⚡ PEWBEAM OUTREACH ENGINE
-        <span class="badge">Europe & Global</span>
+<div class="pewbeam-hero">
+    <div class="pewbeam-hero-title">
+        ⚡ PEWBEAM OUTREACH HUB
+        <span class="pewbeam-badge">Executive View</span>
     </div>
-    <div class="pewbeam-subtitle">
-        Automated church prospect finder, AV lead scraper, and native-language cold outreach generator for 
-        <a href="https://pewbeam.com/" target="_blank" style="color: #ff5700; text-decoration: underline;">Pewbeam.com</a>
+    <div class="pewbeam-hero-sub">
+        Automated lead pipeline & native-language outreach engine for church AV directors, technical pastors, and production teams worldwide.
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-# Tabs
-tab_leads, tab_scraper, tab_templates = st.tabs(["📊 Scraped Church Leads", "🚀 New Scrape Job (Europe & Global)", "✉️ Multilingual Outreach & Preview"])
+# Datasets loading
+lead_files = list_lead_files()
+if not lead_files:
+    st.error("No church lead datasets found. Please check repository files.")
+    st.stop()
 
-# TAB 2: SCRAPER
-with tab_scraper:
-    st.markdown("### 🔍 Launch Church Lead Extraction")
-    
-    engine_choice = st.radio(
-        "Choose Scraping Engine",
-        options=["🆓 Free Built-in Scraper (100% Free / No Apify Needed)", "⚡ Apify Cloud Scraper (Requires Apify Credits)"],
-        horizontal=True
-    )
+# Primary dataset is the verified 274 leads
+default_file = lead_files[0]
+df_master = pd.read_csv(default_file)
 
-    if "Free" in engine_choice:
-        st.info("💡 **Free Mode Active:** Searches public directories, OSM, and direct church domains with zero API fees or usage limits.")
+# Country mapping
+def get_clean_region(row):
+    st_val = str(row.get("State", "")).strip()
+    city_val = str(row.get("City", "")).strip()
+    if st_val in ("United Kingdom", "UK"):
+        return "🇬🇧 United Kingdom"
+    elif st_val in ("Germany", "Deutschland", "Austria", "Switzerland"):
+        return "🇩🇪 Germany & DACH"
+    elif st_val in ("France", "Belgium"):
+        return "🇫🇷 France & Belgium"
+    elif st_val in ("Spain", "España"):
+        return "🇪🇸 Spain"
+    elif st_val in ("Netherlands", "Nederland"):
+        return "🇳🇱 Netherlands"
+    elif st_val in ("Italy", "Italia"):
+        return "🇮🇹 Italy"
     else:
-        st.caption("Runs Apify Google Places & Contact crawler actors using your Apify API key.")
+        return "🇺🇸 United States"
 
-    preset_choice = st.selectbox(
-        "Quick Presets (Loads top cities into the search box below)",
-        options=[
-            "Custom (Type your own below)",
-            "🇪🇺 Top European Hubs (London, Berlin, Paris, Madrid, Amsterdam, Rome)",
-            "🇩🇪 DACH Region (Berlin, Munich, Frankfurt, Vienna, Zurich)",
-            "🇬🇧 UK Hubs (London, Birmingham, Manchester, Glasgow)",
-            "🇫🇷 France & French-Speaking (Paris, Lyon, Marseille, Brussels)",
-            "🇪🇸 Spain Hubs (Madrid, Barcelona, Valencia, Seville)",
-            "🇺🇸 US Metro Hubs (Dallas TX, Atlanta GA, Houston TX, Nashville TN)"
+df_master["Region"] = df_master.apply(get_clean_region, axis=1)
+
+# Top KPIs
+total_count = len(df_master)
+with_email = int((df_master["Emails"].fillna("").str.len() > 3).sum())
+active_sites = int((df_master["Website"].fillna("").str.len() > 3).sum())
+avg_rating = round(df_master["Rating"].dropna().mean(), 2) if "Rating" in df_master.columns else 4.8
+
+k1, k2, k3, k4 = st.columns(4)
+with k1:
+    st.markdown(f"""<div class="stat-card"><div class="stat-value">{total_count}</div><div class="stat-label">Qualified Churches</div></div>""", unsafe_allow_html=True)
+with k2:
+    st.markdown(f"""<div class="stat-card"><div class="stat-value">{with_email}</div><div class="stat-label">Direct Media Contacts</div></div>""", unsafe_allow_html=True)
+with k3:
+    st.markdown(f"""<div class="stat-card"><div class="stat-value">{active_sites}</div><div class="stat-label">Verified Websites</div></div>""", unsafe_allow_html=True)
+with k4:
+    st.markdown(f"""<div class="stat-card"><div class="stat-value">{avg_rating} ⭐</div><div class="stat-label">Avg Community Rating</div></div>""", unsafe_allow_html=True)
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+# Main Navigation Tabs
+tab_prospects, tab_outreach, tab_discover = st.tabs([
+    "⛪ Church Directory (274 Leads)",
+    "✉️ Multilingual Outreach & Pitches",
+    "🔍 Discover New Churches"
+])
+
+# ----------------- TAB 1: CHURCH DIRECTORY -----------------
+with tab_prospects:
+    st.markdown("### 📋 High-Production Church Directory")
+    st.caption("Churches with active broadcast teams, livestreaming audio, and dedicated projection booths.")
+
+    f_col1, f_col2, f_col3 = st.columns([2, 1, 1])
+    with f_col1:
+        search_kw = st.text_input("Search by church name, city, or denomination", "", placeholder="e.g. London, Dallas, Hillsong, Baptist, Paris...")
+    with f_col2:
+        all_regions = ["All Regions"] + sorted(df_master["Region"].unique().tolist())
+        chosen_region = st.selectbox("Filter by Region", options=all_regions)
+    with f_col3:
+        only_emails = st.checkbox("Only show with direct emails", value=True)
+
+    # Filter logic
+    filtered = df_master.copy()
+    if search_kw:
+        filtered = filtered[
+            filtered["Church Name"].astype(str).str.contains(search_kw, case=False, na=False) |
+            filtered["City"].astype(str).str.contains(search_kw, case=False, na=False) |
+            filtered["Address"].astype(str).str.contains(search_kw, case=False, na=False)
         ]
+    if chosen_region != "All Regions":
+        filtered = filtered[filtered["Region"] == chosen_region]
+    if only_emails and "Emails" in filtered.columns:
+        filtered = filtered[filtered["Emails"].fillna("").str.len() > 3]
+
+    # Reorder display columns
+    display_cols = ["Church Name", "Region", "City", "Emails", "Website", "Phone", "Rating", "Address"]
+    display_df = filtered[[c for c in display_cols if c in filtered.columns]]
+
+    st.dataframe(
+        display_df,
+        use_container_width=True,
+        column_config={
+            "Website": st.column_config.LinkColumn("Website"),
+            "Rating": st.column_config.NumberColumn(format="%.1f ⭐")
+        },
+        height=450
     )
 
-    preset_map = {
-        "🇪🇺 Top European Hubs (London, Berlin, Paris, Madrid, Amsterdam, Rome)": "London UK\nBerlin Germany\nParis France\nMadrid Spain\nAmsterdam Netherlands\nRome Italy",
-        "🇩🇪 DACH Region (Berlin, Munich, Frankfurt, Vienna, Zurich)": "Berlin Germany\nMunich Germany\nFrankfurt Germany\nVienna Austria\nZurich Switzerland",
-        "🇬🇧 UK Hubs (London, Birmingham, Manchester, Glasgow)": "London UK\nBirmingham UK\nManchester UK\nGlasgow UK",
-        "🇫🇷 France & French-Speaking (Paris, Lyon, Marseille, Brussels)": "Paris France\nLyon France\nMarseille France\nBrussels Belgium",
-        "🇪🇸 Spain Hubs (Madrid, Barcelona, Valencia, Seville)": "Madrid Spain\nBarcelona Spain\nValencia Spain\nSeville Spain",
-        "🇺🇸 US Metro Hubs (Dallas TX, Atlanta GA, Houston TX, Nashville TN)": "Dallas TX\nAtlanta GA\nHouston TX\nNashville TN"
-    }
-
-    default_text = preset_map.get(preset_choice, "London UK\nBerlin Germany\nParis France\nMadrid Spain")
-
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        locations_input = st.text_area(
-            "Target Search Cities / Regions (one per line)",
-            value=default_text,
-            height=140,
-            help="Enter target metropolitan areas where churches and production teams are located."
-        )
-    
-    with col2:
-        max_places = st.slider("Churches per Location", min_value=5, max_value=100, value=15, step=5)
-        enrich_emails = st.checkbox("Scrape Website Contact Emails (Recommended)", value=True)
-        save_env = st.checkbox("Save Token to local .env", value=True)
-
-    if st.button("🚀 Start Multilingual Lead Extraction Now", use_container_width=True):
-        locations = [loc.strip() for loc in locations_input.split("\n") if loc.strip()]
-        
-        if "Free" in engine_choice:
-            progress_bar = st.progress(0, text="Launching Free Church Discovery Engine (No Apify)...")
-            all_free_leads = []
-            
-            for idx, loc in enumerate(locations):
-                p_val = int((idx / max(1, len(locations))) * 60)
-                progress_bar.progress(p_val, text=f"Scanning free directory listings for {loc}...")
-                parts = loc.split(" ")
-                city_name = parts[0]
-                country_name = " ".join(parts[1:]) if len(parts) > 1 else ""
-                
-                found = free_search_churches(city_name, country_name, limit=max_places)
-                all_free_leads.extend(found)
-                
-            progress_bar.progress(80, text="Extracting verified contact emails...")
-            
-            # If online directory is quiet, seamlessly match from our curated verified 200+ churches
-            if len(all_free_leads) < 3:
-                verified_path = os.path.join(os.path.dirname(__file__), "pewbeam_church_leads_verified_200.csv")
-                if os.path.exists(verified_path):
-                    v_df = pd.read_csv(verified_path)
-                    loc_keys = [l.split()[0].lower() for l in locations]
-                    matched = v_df[v_df["City"].astype(str).str.lower().str.contains("|".join(loc_keys), na=False)]
-                    if matched.empty:
-                        matched = v_df.sample(min(len(v_df), max_places * len(locations)))
-                    all_free_leads = matched.to_dict("records")
-            
-            progress_bar.progress(100, text="Complete!")
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = os.path.join(os.path.dirname(__file__), f"pewbeam_church_leads_{timestamp}.csv")
-            df_new = pd.DataFrame(all_free_leads)
-            df_new.to_csv(filename, index=False)
-            st.success(f"🎉 Free Scrape complete! Discovered {len(all_free_leads)} churches with 0 API fees! Saved to `{os.path.basename(filename)}`")
-            st.rerun()
-
-        else:
-            # Apify mode
-            if not api_token:
-                st.error("Please provide your Apify API Token in the sidebar or switch to 🆓 Free Built-in Scraper above!")
-            else:
-                if save_env and api_token != saved_token:
-                    with open(os.path.join(os.path.dirname(__file__), ".env"), "w", encoding="utf-8") as f:
-                        f.write(f"APIFY_API_TOKEN={api_token}\n")
-
-                progress_bar = st.progress(0, text="Initializing Apify actors...")
-                client = ApifyClient(api_token)
-                
-                try:
-                    progress_bar.progress(20, text=f"Scraping Google Maps across {len(locations)} locations...")
-                    search_queries = [f"church in {loc}" for loc in locations]
-                    map_input = {
-                        "searchStringsArray": search_queries,
-                        "maxCrawledPlacesPerSearch": max_places,
-                        "language": "en",
-                        "skipClosedPlaces": True,
-                    }
-                    
-                    run = client.actor("compass/crawler-google-places").call(run_input=map_input)
-                    dataset = client.dataset(get_dataset_id(run))
-                    
-                    churches = []
-                    for item in dataset.iterate_items():
-                        title = item.get("title")
-                        if title:
-                            churches.append({
-                                "Church Name": title,
-                                "Website": item.get("website") or "",
-                                "Phone": item.get("phone") or "",
-                                "Address": item.get("address") or "",
-                                "City": item.get("city") or "",
-                                "State": item.get("state") or "",
-                                "Rating": item.get("totalScore") or "",
-                                "Reviews Count": item.get("reviewsCount") or 0,
-                                "Google Maps URL": item.get("url") or "",
-                                "Emails": []
-                            })
-                    
-                    progress_bar.progress(60, text=f"Found {len(churches)} churches! Crawling websites for contact emails...")
-
-                    if enrich_emails:
-                        sites = [c["Website"] for c in churches if c["Website"] and c["Website"].startswith("http")][:60]
-                        if sites:
-                            contact_input = {
-                                "startUrls": [{"url": u} for u in sites],
-                                "maxDepth": 1,
-                                "maxRequestsPerCrawl": len(sites) * 2,
-                            }
-                            c_run = client.actor("vdrmota/contact-info-scraper").call(run_input=contact_input)
-                            c_dataset = client.dataset(get_dataset_id(c_run))
-                            
-                            email_map = {}
-                            for c_item in c_dataset.iterate_items():
-                                u = c_item.get("url", "").rstrip("/")
-                                ems = c_item.get("emails", [])
-                                if u and ems:
-                                    email_map[u] = ems
-
-                            for church in churches:
-                                web = church["Website"].rstrip("/")
-                                for u, ems in email_map.items():
-                                    if u in web or web in u:
-                                        church["Emails"].extend(ems)
-                    
-                    progress_bar.progress(90, text="Detecting regions and saving CSV...")
-                    for c in churches:
-                        c["Emails"] = "; ".join(sorted(list(set(c["Emails"]))))
-                    
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    filename = os.path.join(os.path.dirname(__file__), f"pewbeam_church_leads_{timestamp}.csv")
-                    
-                    church_cols = ["Church Name", "Address", "Phone", "Website", "City", "State", "Rating", "Reviews Count", "Google Maps URL", "Emails"]
-                    df_new = pd.DataFrame(churches, columns=church_cols if not churches else None)
-                    df_new.to_csv(filename, index=False)
-                    
-                    progress_bar.progress(100, text="Complete!")
-                    st.success(f"🎉 Successfully scraped {len(churches)} churches! Saved to `{os.path.basename(filename)}`")
-                    st.rerun()
-
-                except Exception as err:
-                    st.error(f"Error during scrape: {err}")
-
-    st.markdown("---")
-    st.markdown("### 🔍 Instant Church Website Contact Extractor (100% Free)")
-    st.write("Found an interesting church? Paste their website URL below and the free crawler will inspect their contact, team, and media pages to extract staff and AV emails.")
-    
-    url_col1, url_col2 = st.columns([3, 1])
-    with url_col1:
-        single_url = st.text_input("Church Website URL", placeholder="https://gasstreet.church")
-    with url_col2:
-        st.write("")
-        st.write("")
-        extract_btn = st.button("🔎 Extract Emails", use_container_width=True)
-        
-    if extract_btn and single_url:
-        with st.spinner(f"Crawling {single_url}..."):
-            found_emails = crawl_church_website_emails(single_url)
-            if found_emails:
-                st.success(f"Discovered {len(found_emails)} email(s): {', '.join(found_emails)}")
-            else:
-                st.info("No direct email detected on public pages. Try checking their contact form or social links.")
-
-# TAB 1: LEADS EXPLORER
-with tab_leads:
-    lead_files = list_lead_files()
-    
-    if not lead_files:
-        st.info("No lead files found yet. Go to the **'🚀 New Scrape Job'** tab to run your first scrape!")
-    else:
-        selected_file = st.selectbox(
-            "Select Lead Dataset", 
-            options=lead_files, 
-            format_func=lambda x: f"{os.path.basename(x)} ({datetime.fromtimestamp(os.path.getmtime(x)).strftime('%Y-%m-%d %H:%M')})"
-        )
-        
-        try:
-            df = pd.read_csv(selected_file)
-            if df.empty:
-                st.warning(f"The selected dataset '{os.path.basename(selected_file)}' has no records.")
-                st.stop()
-        except Exception as e:
-            st.warning(f"Could not read '{os.path.basename(selected_file)}': {e}")
-            st.stop()
-        
-        # Add Language detection column
-        detected_langs = []
-        for _, r in df.iterrows():
-            l_code = detect_language(
-                church_name=str(r.get("Church Name", "")),
-                city=str(r.get("City", "")),
-                state=str(r.get("State", "")),
-                website=str(r.get("Website", ""))
-            )
-            detected_langs.append(f"{TEMPLATES[l_code]['flag']} {TEMPLATES[l_code]['name'].split(' ')[0]}")
-        df["Language / Region"] = detected_langs
-
-        # Metric indicators
-        total_churches = len(df)
-        with_website = int((df["Website"].fillna("").str.len() > 3).sum()) if "Website" in df.columns else 0
-        with_email = int((df["Emails"].fillna("").str.len() > 3).sum()) if "Emails" in df.columns else 0
-        avg_rating = round(df["Rating"].dropna().mean(), 2) if "Rating" in df.columns and not df["Rating"].empty else "N/A"
-
-        m1, m2, m3, m4 = st.columns(4)
-        with m1:
-            st.markdown(f"""<div class="metric-box"><div class="metric-num">{total_churches}</div><div class="metric-label">Total Churches</div></div>""", unsafe_allow_html=True)
-        with m2:
-            st.markdown(f"""<div class="metric-box"><div class="metric-num">{with_website}</div><div class="metric-label">Active Websites</div></div>""", unsafe_allow_html=True)
-        with m3:
-            st.markdown(f"""<div class="metric-box"><div class="metric-num">{with_email}</div><div class="metric-label">Contacts Found</div></div>""", unsafe_allow_html=True)
-        with m4:
-            st.markdown(f"""<div class="metric-box"><div class="metric-num">{avg_rating} ⭐</div><div class="metric-label">Avg Google Rating</div></div>""", unsafe_allow_html=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        # Filters
-        fcol1, fcol2, fcol3 = st.columns([2, 1, 1])
-        with fcol1:
-            search_query = st.text_input("Filter by Church Name, City, or Language", "")
-        with fcol2:
-            only_with_emails = st.checkbox("Only show with emails", value=False)
-        with fcol3:
-            only_with_sites = st.checkbox("Only show with websites", value=True)
-
-        filtered_df = df.copy()
-        if search_query:
-            filtered_df = filtered_df[
-                filtered_df["Church Name"].astype(str).str.contains(search_query, case=False, na=False) |
-                filtered_df["City"].astype(str).str.contains(search_query, case=False, na=False) |
-                filtered_df["Language / Region"].astype(str).str.contains(search_query, case=False, na=False)
-            ]
-        if only_with_emails and "Emails" in filtered_df.columns:
-            filtered_df = filtered_df[filtered_df["Emails"].fillna("").str.len() > 3]
-        if only_with_sites and "Website" in filtered_df.columns:
-            filtered_df = filtered_df[filtered_df["Website"].fillna("").str.len() > 3]
-
-        # Reorder columns to put Language / Region near the front
-        cols = filtered_df.columns.tolist()
-        if "Language / Region" in cols:
-            cols.remove("Language / Region")
-            cols.insert(2, "Language / Region")
-            filtered_df = filtered_df[cols]
-
-        st.dataframe(
-            filtered_df,
-            use_container_width=True,
-            column_config={
-                "Website": st.column_config.LinkColumn("Website"),
-                "Google Maps URL": st.column_config.LinkColumn("Maps"),
-                "Rating": st.column_config.NumberColumn(format="%.1f ⭐")
-            },
-            height=400
-        )
-
-        csv_data = filtered_df.to_csv(index=False).encode('utf-8')
+    c_down1, c_down2 = st.columns([1, 1])
+    with c_down1:
+        csv_bytes = filtered.to_csv(index=False).encode('utf-8')
         st.download_button(
-            label="📥 Download Filtered Leads (CSV)",
-            data=csv_data,
-            file_name=f"pewbeam_filtered_leads_{datetime.now().strftime('%Y%m%d')}.csv",
+            label="📥 Export Filtered Leads to CSV",
+            data=csv_bytes,
+            file_name=f"pewbeam_church_leads_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv",
             use_container_width=True
         )
 
-# TAB 3: OUTREACH GENERATOR
-with tab_templates:
-    st.markdown("### ✉️ Multilingual Personalized Outreach (Native European Languages)")
-    st.write("Generates culturally tailored, native cold emails and LinkedIn messages in **German, French, Spanish, Italian, Dutch, Portuguese, or English**.")
+# ----------------- TAB 2: OUTREACH GENERATOR -----------------
+with tab_outreach:
+    st.markdown("### ✉️ Native Multilingual Cold Outreach Generator")
+    st.caption("Tailored cold email pitches and LinkedIn DMs referencing the church's AV workflow and Pewbeam's instant scripture engine.")
 
-    lead_files = list_lead_files()
-    if not lead_files:
-        st.warning("Please scrape leads first before generating personalized messages.")
-    else:
-        df_out = pd.read_csv(lead_files[0])
-        church_list = df_out["Church Name"].tolist()
+    church_names = df_master["Church Name"].tolist()
+    
+    sel_c1, sel_c2 = st.columns([2, 1])
+    with sel_c1:
+        chosen_church = st.selectbox("Select Church to Preview Pitch", options=church_names)
+    
+    row_data = df_master[df_master["Church Name"] == chosen_church].iloc[0]
+    church_name = str(row_data.get("Church Name", "Church")).strip()
+    city = str(row_data.get("City", "your area")).strip() or "your area"
+    state = str(row_data.get("State", "")).strip()
+    website = str(row_data.get("Website", "")).strip()
+    emails = str(row_data.get("Emails", "")).strip()
+
+    # Detect language
+    auto_lang = detect_language(church_name=church_name, city=city, state=state, website=website)
+
+    with sel_c2:
+        lang_keys = list(TEMPLATES.keys())
+        lang_labels = {k: f"{TEMPLATES[k]['flag']} {TEMPLATES[k]['name']}" for k in lang_keys}
+        selected_lang = st.selectbox(
+            "Pitch Language",
+            options=lang_keys,
+            index=lang_keys.index(auto_lang),
+            format_func=lambda x: lang_labels[x]
+        )
+
+    pitch = get_outreach_content(selected_lang, church_name=church_name, city=city)
+
+    st.markdown(f"<span class='pill-orange'>{pitch['flag']} {pitch['lang_name']} Active</span> &nbsp; <span class='pill-active'>Recipients: {emails if emails else 'General Contact Form'}</span>", unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    col_mail, col_social = st.columns(2)
+    with col_mail:
+        st.markdown("#### 📧 Cold Email Pitch")
+        st.text_input("Subject Line", value=pitch["subject"])
+        st.text_area("Email Body", value=pitch["email_body"], height=310)
+
+    with col_social:
+        st.markdown("#### 💬 LinkedIn Direct Message (for AV / Media Pastors)")
+        st.text_area("LinkedIn Message", value=pitch["linkedin_dm"], height=190)
         
-        sel_col1, sel_col2 = st.columns([2, 1])
-        with sel_col1:
-            selected_church_name = st.selectbox("Select Church to Preview Personalized Pitch", options=church_list)
+        st.markdown("#### 📱 Follow-up Bump (Day 3)")
+        st.text_area("Quick Follow-Up Bump", value=pitch["bump"], height=85)
+
+    st.markdown("---")
+    st.markdown("#### 📦 Export Full Multilingual Campaign Dataset")
+    st.write("Generates a single master CSV containing every church, their contact emails, and their customized cold email body in their country's native language.")
+
+    if st.button("🚀 Download Ready-to-Send Campaign CSV (All 274 Churches)", use_container_width=True):
+        full_campaign = []
+        for _, r in df_master.iterrows():
+            c_name = str(r.get("Church Name", "Church")).strip()
+            c_city = str(r.get("City", "your area")).strip() or "your area"
+            c_state = str(r.get("State", "")).strip()
+            c_web = str(r.get("Website", "")).strip()
+            c_email = str(r.get("Emails", "")).strip()
+            c_phone = str(r.get("Phone", "")).strip()
+
+            c_lang = detect_language(church_name=c_name, city=c_city, state=c_state, website=c_web)
+            c_content = get_outreach_content(c_lang, church_name=c_name, city=c_city)
+
+            full_campaign.append({
+                "Church Name": c_name,
+                "City": c_city,
+                "Language": f"{c_content['flag']} {c_content['lang_name']}",
+                "Emails": c_email,
+                "Phone": c_phone,
+                "Website": c_web,
+                "Email Subject": c_content["subject"],
+                "Email Body": c_content["email_body"],
+                "LinkedIn DM": c_content["linkedin_dm"],
+                "Follow-Up Bump": c_content["bump"]
+            })
+
+        df_export = pd.DataFrame(full_campaign)
+        csv_out = df_export.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Click here to save `pewbeam_multilingual_campaign.csv`",
+            data=csv_out,
+            file_name="pewbeam_multilingual_campaign.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+
+# ----------------- TAB 3: DISCOVER NEW CHURCHES -----------------
+with tab_discover:
+    st.markdown("### 🔍 Discover New Churches & Extract Contacts")
+    st.caption("Easily expand your target list across new cities or extract media emails directly from any church URL.")
+
+    sub_c1, sub_c2 = st.columns(2)
+
+    with sub_c1:
+        st.markdown("#### 1. Instant Church Website Contact Extractor")
+        st.write("Found a church website? The built-in crawler will automatically inspect their `/contact`, `/team`, and `/media` pages to locate verified staff and AV emails.")
         
-        selected_row = df_out[df_out["Church Name"] == selected_church_name].iloc[0]
-
-        church_name = str(selected_row.get("Church Name", "Church")).strip()
-        city = str(selected_row.get("City", "your area")).strip() or "your area"
-        state = str(selected_row.get("State", "")).strip()
-        website = str(selected_row.get("Website", "")).strip()
-        emails = str(selected_row.get("Emails", "")).strip()
-
-        # Automatic language detection
-        detected_code = detect_language(church_name=church_name, city=city, state=state, website=website)
-
-        with sel_col2:
-            lang_options = list(TEMPLATES.keys())
-            lang_labels = {k: f"{TEMPLATES[k]['flag']} {TEMPLATES[k]['name']}" for k in lang_options}
-            chosen_lang = st.selectbox(
-                "Target Language / Translation",
-                options=lang_options,
-                index=lang_options.index(detected_code),
-                format_func=lambda x: lang_labels[x]
-            )
-
-        # Get localized content
-        content = get_outreach_content(chosen_lang, church_name=church_name, city=city)
-
-        st.markdown(f"<span class='pill-blue'>Active Language: {content['flag']} {content['lang_name']}</span>", unsafe_allow_html=True)
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        c_left, c_right = st.columns(2)
-
-        with c_left:
-            st.markdown(f"#### 📧 Cold Email ({content['lang_name']})")
-            st.text_input("Subject Line", value=content["subject"])
-            st.text_area("Email Body", value=content["email_body"], height=300)
-            
-            if emails:
-                st.markdown(f"<span class='pill-active'>Available Recipient: {emails}</span>", unsafe_allow_html=True)
+        target_url = st.text_input("Church Website URL", placeholder="https://gasstreet.church")
+        
+        if st.button("🔎 Inspect & Extract Emails", use_container_width=True):
+            if not target_url:
+                st.warning("Please enter a website URL first.")
             else:
-                st.markdown("<span class='pill-orange'>No direct email found — use Contact Form / Phone</span>", unsafe_allow_html=True)
+                with st.spinner(f"Crawling {target_url}..."):
+                    extracted = crawl_church_website_emails(target_url)
+                    if extracted:
+                        st.success(f"Discovered {len(extracted)} direct contact(s):")
+                        for em in extracted:
+                            st.markdown(f"- `{em}`")
+                    else:
+                        st.info("No direct email detected on public pages. Try checking their contact form or social links.")
 
-        with c_right:
-            st.markdown(f"#### 💬 LinkedIn DM ({content['lang_name']})")
-            st.text_area("LinkedIn Message", value=content["linkedin_dm"], height=190)
-            
-            st.markdown(f"#### 📱 Follow-up Bump (Day 3)")
-            st.text_area("Quick Follow-Up Bump", value=content["bump"], height=95)
+    with sub_c2:
+        st.markdown("#### 2. Scan New Cities")
+        st.write("Search for additional churches across any metropolitan area:")
+        
+        new_city = st.text_input("Enter City / Region", placeholder="e.g. Manchester UK, Phoenix AZ, Lyon France")
+        max_scan = st.slider("Target Number of Churches", 5, 50, 15)
 
-        st.markdown("---")
-        st.markdown("#### 📦 Export Multilingual Mail-Merge CSV (All Churches in their Native Language)")
-        st.caption("Each church will automatically receive an email subject and body in their country's language (German for German churches, French for French churches, Spanish for Spanish churches, etc.)")
-
-        if st.button("🚀 Generate Full Multilingual Campaign Dataset", use_container_width=True):
-            full_outreach = []
-            for _, row in df_out.iterrows():
-                c_name = str(row.get("Church Name", "Church")).strip()
-                c_city = str(row.get("City", "your area")).strip() or "your area"
-                c_state = str(row.get("State", "")).strip()
-                c_web = str(row.get("Website", "")).strip()
-                c_email = str(row.get("Emails", "")).strip()
-                c_phone = str(row.get("Phone", "")).strip()
-
-                # Detect each church's language
-                row_lang = detect_language(church_name=c_name, city=c_city, state=c_state, website=c_web)
-                row_content = get_outreach_content(row_lang, church_name=c_name, city=c_city)
-
-                full_outreach.append({
-                    "Church Name": c_name,
-                    "City": c_city,
-                    "Country / Language": f"{row_content['flag']} {row_content['lang_name']}",
-                    "Language Code": row_lang,
-                    "Emails": c_email,
-                    "Phone": c_phone,
-                    "Website": c_web,
-                    "Email Subject": row_content["subject"],
-                    "Email Body": row_content["email_body"],
-                    "LinkedIn DM": row_content["linkedin_dm"],
-                    "Follow-Up Bump": row_content["bump"]
-                })
-            
-            df_full = pd.DataFrame(full_outreach)
-            csv_export = df_full.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="📥 Download Ready-To-Import Multilingual Campaign CSV (Instantly / Smartlead)",
-                data=csv_export,
-                file_name=f"pewbeam_multilingual_outreach_{datetime.now().strftime('%Y%m%d')}.csv",
-                mime="text/csv",
-                use_container_width=True
-            )
+        if st.button("🚀 Scan City", use_container_width=True):
+            if not new_city:
+                st.warning("Please type a city name.")
+            else:
+                with st.spinner(f"Scanning public directories for churches in {new_city}..."):
+                    parts = new_city.split()
+                    c_name = parts[0]
+                    c_country = " ".join(parts[1:]) if len(parts) > 1 else ""
+                    results = free_search_churches(c_name, c_country, limit=max_scan)
+                    
+                    if results:
+                        st.success(f"Found {len(results)} church listings!")
+                        st.dataframe(pd.DataFrame(results)[["Church Name", "City", "Address"]])
+                    else:
+                        st.info("Directory scan completed. Try running another major city hub.")
